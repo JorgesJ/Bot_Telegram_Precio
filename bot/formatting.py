@@ -23,6 +23,14 @@ def fmt_price(price: float | None, currency: str = "EUR") -> str:
     return f"{s} {symbol}"
 
 
+def fmt_amount(price: float | None) -> str:
+    """Número al estilo español sin símbolo de moneda: 1.299,99."""
+    if price is None:
+        return "—"
+    s = f"{price:,.2f}"
+    return s.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def fmt_delta(check: StoreCheck) -> str:
     """Texto del cambio de precio con flecha y signo."""
     delta = check.delta
@@ -106,17 +114,14 @@ def format_product_detail(db: Database, product: Product) -> str:
         mn, mx = db.get_min_max(store.id)
         header = f"🛒 <b>{escape(store.name)}</b>"
         if store.last_price is not None:
-            header += f" — {fmt_price(store.last_price, store.currency)}"
+            header += f": {fmt_price(store.last_price, store.currency)}"
             if store.available is False:
                 header += " 🚫"
         elif store.last_error:
-            header += " — ⚠️ error"
+            header += ": ⚠️ error"
         lines.append(header)
         if mn is not None and mx is not None:
-            lines.append(
-                f"   📉 mín: {fmt_price(mn, store.currency)} · "
-                f"📈 máx: {fmt_price(mx, store.currency)}"
-            )
+            lines.append(f"   mín {fmt_amount(mn)} · máx {fmt_amount(mx)}")
         if store.last_error:
             lines.append(f"   ⚠️ {escape(store.last_error)}")
 
