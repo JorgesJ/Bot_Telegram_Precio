@@ -31,7 +31,15 @@ def build_application() -> Application:
     configure_logging(settings.log_level)
 
     db = Database(settings.database_path)
-    scraper = Scraper(timeout=settings.http_timeout, delay=settings.scrape_delay_seconds)
+    scraper = Scraper(
+        timeout=settings.http_timeout,
+        delay=settings.scrape_delay_seconds,
+        api_key=settings.scraperapi_key,
+        api_domains=settings.scraperapi_domains,
+        api_budget=settings.scraperapi_monthly_budget,
+        api_credits_per_request=settings.scraperapi_credits_per_request,
+        db=db,
+    )
     tracker = Tracker(db, scraper)
 
     app = Application.builder().token(settings.bot_token).build()

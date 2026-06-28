@@ -19,8 +19,9 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 import httpx
 from selectolax.parser import HTMLParser
@@ -28,6 +29,13 @@ from selectolax.parser import HTMLParser
 from . import stores
 
 logger = logging.getLogger(__name__)
+
+SCRAPERAPI_ENDPOINT = "https://api.scraperapi.com/"
+
+
+def month_key() -> str:
+    """Clave del mes actual (YYYY-MM) para el contador de la API."""
+    return datetime.now().strftime("%Y-%m")
 
 # User-agents para rotar y parecer un navegador real.
 USER_AGENTS = [
@@ -252,9 +260,23 @@ def extract_price(html: str, url: str, user_selector: Optional[str]) -> ScrapeRe
 # Descarga + extracción (con red)
 # --------------------------------------------------------------------------- #
 class Scraper:
-    def __init__(self, timeout: float = 20.0, delay: float = 3.0):
+    def __init__(
+        self,
+        timeout: float = 20.0,
+        delay: float = 3.0,
+        api_key: str = "",
+        api_domains: Optional[set[str]] = None,
+        api_budget: int = 1000,
+        api_credits_per_request: int = 10,
+        db=None,
+    ):
         self.timeout = timeout
         self.delay = delay
+        self.api_key = api_key
+        self.api_domains = api_domains or set()
+        self.api_budget = api_budget
+        self.api_credits_per_request = api_credits_per_request
+        self.db = db
         self._ua_index = 0
 
     def _headers(self, url: Optional[str] = None) -> dict:
@@ -266,10 +288,15 @@ class Scraper:
             headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
         return headers
 
+    def _use_api(self, url: str) -> bool:
+        return bool(self.api_key) and stores.normalize_domain(url) in self.api_domains
+
     async def fetch(self, url: str, user_selector: Optional[str] = None) -> ScrapeResult:
         """Descarga la URL y extrae el precio. Nunca lanza excepción."""
         if not stores.is_valid_url(url):
             return ScrapeResult(url=url, ok=False, error="URL inválida.")
+        if self._use_api(url):
+            return await self._fetch_via_api(url, user_selector)
         last_status: Optional[int] = None
         for attempt in range(2):
             try:
@@ -301,6 +328,49 @@ class Scraper:
             url=url, ok=False,
             error=f"La tienda respondió con error HTTP {last_status}.",
         )
+
+    async def _fetch_via_api(
+        self, url: str, user_selector: Optional[str]
+    ) -> ScrapeResult:
+        """Descarga vía ScraperAPI (IP residencial) controlando el presupuesto."""
+        month = month_key()
+        cost = self.api_credits_per_request
+        if self.db is not None:
+            used = self.db.get_month_credits(month)
+            if used + cost > self.api_budget:
+                return ScrapeResult(
+                    url=url, ok=False,
+                    error="⏸️ Límite mensual de la API de scraping alcanzado. "
+                    "Se reanudará automáticamente el mes que viene.",
+                )
+        params = {
+            "api_key": self.api_key,
+            "url": url,
+            "premium": "true",
+            "render": "true",
+            "country_code": "es",
+        }
+        api_url = f"{SCRAPERAPI_ENDPOINT}?{urlencode(params)}"
+        api_timeout = max(self.timeout, 70.0)
+        try:
+            async with httpx.AsyncClient(timeout=api_timeout) as client:
+                resp = await client.get(api_url)
+        except httpx.RequestError as exc:
+            return ScrapeResult(
+                url=url, ok=False, error=f"No se pudo conectar con la API: {exc!s}"
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Error inesperado con la API scrapeando %s", url)
+            return ScrapeResult(url=url, ok=False, error=f"Error inesperado: {exc!s}")
+
+        if resp.status_code != 200:
+            return ScrapeResult(
+                url=url, ok=False,
+                error=f"La API respondió con error HTTP {resp.status_code}.",
+            )
+        if self.db is not None:
+            self.db.add_month_credits(month, cost)
+        return extract_price(resp.text, url, user_selector)
 
     async def fetch_many(self, items: list[tuple[str, Optional[str]]]) -> list[ScrapeResult]:
         """Scrapea varias (url, selector) en serie con un pequeño delay."""
