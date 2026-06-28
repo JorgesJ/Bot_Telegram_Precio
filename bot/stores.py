@@ -21,9 +21,23 @@ STORE_REGISTRY: dict[str, dict] = {
         "name": "Amazon",
         "selectors": [
             "span.a-price span.a-offscreen",
+            "#corePriceDisplay_desktop_feature_div span.a-offscreen",
             "#corePrice_feature_div span.a-offscreen",
+            "#corePrice_desktop span.a-offscreen",
+            ".a-price .a-offscreen",
             "#priceblock_ourprice",
             "#priceblock_dealprice",
+            "#sns-base-price",
+        ],
+    },
+    "delonghi": {
+        "name": "Delonghi",
+        "selectors": [
+            'meta[itemprop="price"]',
+            ".product-tile-price .value",
+            ".price-sales .value",
+            ".price .value",
+            "span.price",
         ],
     },
     "mediamarkt": {

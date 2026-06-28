@@ -96,10 +96,12 @@ class BotHandlers:
                 ADD_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.add_name)],
                 ADD_STORE_URL: [
                     CommandHandler("done", self.add_store_done),
+                    CallbackQueryHandler(self.conv_finish, pattern=r"^conv_finish$"),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self.add_store_url),
                 ],
                 ADDSTORE_URL: [
                     CommandHandler("done", self.addstore_done),
+                    CallbackQueryHandler(self.conv_finish, pattern=r"^conv_finish$"),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self.addstore_url),
                 ],
                 SET_TARGET: [
@@ -210,8 +212,9 @@ class BotHandlers:
             f"✅ Producto «{name}» creado.\n\n"
             "Ahora pégame la <b>URL del producto en la primera tienda</b> "
             "(Amazon, MediaMarkt, PcComponentes…).\n"
-            "Cuando termines de añadir tiendas, escribe /done.",
+            "Cuando termines de añadir tiendas, pulsa ✅ Terminar o escribe /done.",
             parse_mode=ParseMode.HTML,
+            reply_markup=self._finish_kb(),
         )
         return ADD_STORE_URL
 
@@ -247,7 +250,8 @@ class BotHandlers:
         await update.callback_query.answer()
         await update.callback_query.message.reply_text(
             "🔗 Pégame la URL del producto en la nueva tienda.\n"
-            "Puedes pegar varias seguidas; escribe /done al terminar."
+            "Puedes pegar varias seguidas; pulsa ✅ Terminar o escribe /done al acabar.",
+            reply_markup=self._finish_kb(),
         )
         return ADDSTORE_URL
 
@@ -264,6 +268,18 @@ class BotHandlers:
         if product_id:
             product = self.db.get_product(product_id)
             await update.message.reply_text(
+                formatting.format_product_detail(self.db, product),
+                parse_mode=ParseMode.HTML,
+                reply_markup=self._product_kb(product_id),
+            )
+        return ConversationHandler.END
+
+    async def conv_finish(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await update.callback_query.answer()
+        product_id = context.user_data.pop("product_id", None)
+        if product_id:
+            product = self.db.get_product(product_id)
+            await update.callback_query.message.reply_text(
                 formatting.format_product_detail(self.db, product),
                 parse_mode=ParseMode.HTML,
                 reply_markup=self._product_kb(product_id),
@@ -288,15 +304,18 @@ class BotHandlers:
         if check and check.ok:
             await msg.edit_text(
                 f"✅ <b>{store_name}</b>: {formatting.fmt_price(check.new_price, check.store.currency)}\n"
-                "Pega otra URL o escribe /done.",
+                "Pega otra URL, pulsa ✅ Terminar o escribe /done.",
                 parse_mode=ParseMode.HTML,
+                reply_markup=self._finish_kb(),
             )
         else:
             err = check.result.error if check else "desconocido"
             await msg.edit_text(
                 f"⚠️ Añadida <b>{store_name}</b>, pero no pude leer el precio "
-                f"({err}).\nLo reintentaré en el chequeo diario. Pega otra URL o /done.",
+                f"({err}).\nLo reintentaré en el chequeo diario. Pega otra URL, "
+                "pulsa ✅ Terminar o escribe /done.",
                 parse_mode=ParseMode.HTML,
+                reply_markup=self._finish_kb(),
             )
 
     # ------------------------------------------------------------------ #
@@ -401,7 +420,10 @@ class BotHandlers:
         if not products:
             text = prefix + "No tienes productos todavía.\nUsa ➕ para añadir el primero."
             kb = InlineKeyboardMarkup(
-                [[InlineKeyboardButton("➕ Añadir producto", callback_data="conv_add")]]
+                [
+                    [InlineKeyboardButton("➕ Añadir producto", callback_data="conv_add")],
+                    [InlineKeyboardButton("« Menú principal", callback_data="nav_menu")],
+                ]
             )
         else:
             lines = [prefix + "<b>Tus productos:</b>", ""]
@@ -413,6 +435,7 @@ class BotHandlers:
                 for p in products
             ]
             buttons.append([InlineKeyboardButton("➕ Añadir producto", callback_data="conv_add")])
+            buttons.append([InlineKeyboardButton("« Menú principal", callback_data="nav_menu")])
             kb = InlineKeyboardMarkup(buttons)
         if edit and update.callback_query:
             await update.callback_query.edit_message_text(
@@ -485,6 +508,12 @@ class BotHandlers:
     # ------------------------------------------------------------------ #
     # Teclados
     # ------------------------------------------------------------------ #
+    @staticmethod
+    def _finish_kb() -> InlineKeyboardMarkup:
+        return InlineKeyboardMarkup(
+            [[InlineKeyboardButton("✅ Terminar", callback_data="conv_finish")]]
+        )
+
     @staticmethod
     def _main_menu_kb() -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup(
