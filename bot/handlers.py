@@ -118,8 +118,9 @@ class BotHandlers:
         app.add_handler(CommandHandler("list", self.cmd_list))
         app.add_handler(CommandHandler("check", self.cmd_check_all))
         app.add_handler(CommandHandler("uso", self.cmd_usage))
+        app.add_handler(CommandHandler("menu", self.cmd_menu))
         # Navegación por botones (patrones disjuntos de conv_*)
-        app.add_handler(CallbackQueryHandler(self.on_callback, pattern=r"^(nav_|prod_|store_).*"))
+        app.add_handler(CallbackQueryHandler(self.on_callback, pattern=r"^(nav_|prod_|store_|target_).*"))
 
     # ------------------------------------------------------------------ #
     # Comandos básicos
@@ -139,6 +140,7 @@ class BotHandlers:
     async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             "<b>Comandos</b>\n"
+            "/menu — menú principal\n"
             "/add — añadir un producto nuevo y sus tiendas\n"
             "/list — ver tus productos\n"
             "/check — comprobar precios ahora (todos)\n"
@@ -158,6 +160,10 @@ class BotHandlers:
     @_authorized
     async def cmd_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await self._show_list(update, context)
+
+    @_authorized
+    async def cmd_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self._reply(update, "Menú principal:", self._main_menu_kb())
 
     @_authorized
     async def cmd_check_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -348,10 +354,15 @@ class BotHandlers:
         product_id = int(update.callback_query.data.split(":")[1])
         context.user_data["product_id"] = product_id
         await update.callback_query.answer()
-        await update.callback_query.message.reply_text(
-            "🎯 ¿A qué precio quieres que te avise? Envíame el número (ej: 79,99).\n"
-            "Escribe «quitar» para eliminar el objetivo."
-        )
+        product = self.db.get_product(product_id)
+        if product is not None and product.target_price is not None:
+            prompt = (
+                f"🎯 Objetivo actual: {formatting.fmt_price(product.target_price)}.\n"
+                "Envíame el <b>nuevo precio</b> (ej: 79,99)."
+            )
+        else:
+            prompt = "🎯 Envíame el <b>precio</b> al que quieres que te avise (ej: 79,99)."
+        await update.callback_query.message.reply_text(prompt, parse_mode=ParseMode.HTML)
         return SET_TARGET
 
     async def set_target_value(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -359,19 +370,9 @@ class BotHandlers:
         if product_id is None:
             await update.message.reply_text("Algo falló, vuelve a intentarlo.")
             return ConversationHandler.END
-        text = update.message.text.strip().lower()
-        if text in ("quitar", "borrar", "no", "ninguno"):
-            self.db.set_target_price(product_id, None)
-            await update.message.reply_text(
-                "🎯 Objetivo eliminado.",
-                reply_markup=InlineKeyboardMarkup(
-                    [[InlineKeyboardButton("« Volver al producto", callback_data=f"prod_view:{product_id}")]]
-                ),
-            )
-            return ConversationHandler.END
         from .scraper import parse_price
 
-        value = parse_price(text)
+        value = parse_price(update.message.text.strip())
         if value is None:
             await update.message.reply_text(
                 "No entendí el precio. Envíame solo el número, ej: 79,99."
@@ -444,6 +445,12 @@ class BotHandlers:
             _, sid, pid = data.split(":")
             self.db.delete_store(int(sid))
             await self._show_stores(update, int(pid), prefix="🗑 Tienda eliminada.\n\n")
+        elif data.startswith("target_menu:"):
+            await self._show_target_menu(update, int(data.split(":")[1]))
+        elif data.startswith("target_clear:"):
+            pid = int(data.split(":")[1])
+            self.db.set_target_price(pid, None)
+            await self._show_target_menu(update, pid)
 
     # ------------------------------------------------------------------ #
     # Vistas
@@ -494,6 +501,37 @@ class BotHandlers:
             await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
         else:
             await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    async def _show_target_menu(self, update: Update, product_id: int):
+        product = self.db.get_product(product_id)
+        query = update.callback_query
+        if product is None:
+            await query.answer("Producto no encontrado.", show_alert=True)
+            return
+        back = InlineKeyboardButton("« Volver al producto", callback_data=f"prod_view:{product_id}")
+        if product.target_price is not None:
+            text = (
+                f"🎯 <b>Precio objetivo</b>\n{product.name}\n\n"
+                f"Actual: <b>{formatting.fmt_price(product.target_price)}</b>\n"
+                "Te aviso cuando alguna tienda baje a ese precio o menos."
+            )
+            rows = [
+                [InlineKeyboardButton("✏️ Modificar precio", callback_data=f"conv_target:{product_id}")],
+                [InlineKeyboardButton("🗑 Quitar objetivo", callback_data=f"target_clear:{product_id}")],
+                [back],
+            ]
+        else:
+            text = (
+                f"🎯 <b>Precio objetivo</b>\n{product.name}\n\n"
+                "No hay objetivo fijado."
+            )
+            rows = [
+                [InlineKeyboardButton("➕ Fijar precio objetivo", callback_data=f"conv_target:{product_id}")],
+                [back],
+            ]
+        await query.edit_message_text(
+            text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(rows)
+        )
 
     async def _show_stores(self, update: Update, product_id: int, prefix: str = ""):
         product = self.db.get_product(product_id)
@@ -595,7 +633,7 @@ class BotHandlers:
                     InlineKeyboardButton("🗑 Eliminar tiendas", callback_data=f"prod_stores:{product_id}"),
                 ],
                 [
-                    InlineKeyboardButton("🎯 Precio objetivo", callback_data=f"conv_target:{product_id}"),
+                    InlineKeyboardButton("🎯 Precio objetivo", callback_data=f"target_menu:{product_id}"),
                     InlineKeyboardButton("🗑 Eliminar producto", callback_data=f"prod_del:{product_id}"),
                 ],
                 [InlineKeyboardButton("« Mis productos", callback_data="nav_list")],
