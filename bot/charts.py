@@ -9,13 +9,7 @@ import io
 import logging
 from datetime import datetime
 
-import matplotlib
-
-matplotlib.use("Agg")  # backend sin display, imprescindible en servidor
-import matplotlib.dates as mdates  # noqa: E402
-import matplotlib.pyplot as plt  # noqa: E402
-
-from .database import Database, Product  # noqa: E402
+from .database import Database, Product
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +29,12 @@ def build_price_chart(db: Database, product: Product) -> io.BytesIO | None:
     stores = db.list_stores(product.id)
     if not stores:
         return None
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(10, 5.5))
     plotted_any = False
