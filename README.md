@@ -33,7 +33,7 @@ momento.
 
 ## 🛠️ Requisitos
 
-- Python 3.10+ (recomendado 3.12) **o** Docker.
+- Python 3.10+ (en el VPS: Ubuntu 24.04 con Python 3.12).
 - Un servidor encendido 24/7 (VPS, Raspberry Pi…). El chequeo diario necesita
   que el proceso esté vivo.
 - Un token de bot de Telegram.
@@ -54,34 +54,29 @@ cp .env.example .env
 # edita .env y rellena al menos TELEGRAM_BOT_TOKEN y (opcional) ALLOWED_USER_IDS
 ```
 
-### 3a. Ejecutar directamente (con venv)
+### 3. Instalar (venv) y arrancar como servicio systemd
+
+En el VPS (Ubuntu 24.04), como `root`, con el repo ya clonado en
+`/root/Bot_Telegram_Precio`:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python main.py
+cd /root/Bot_Telegram_Precio
+python3 -m venv venv
+venv/bin/pip install -r requirements.txt
 ```
 
-### 3b. Ejecutar con Docker (recomendado para el VPS)
+Instala y arranca el servicio:
 
 ```bash
-docker compose up -d --build
-docker compose logs -f      # ver los logs
+cp deploy/price-tracker-bot.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now price-tracker-bot
+systemctl status price-tracker-bot
+journalctl -u price-tracker-bot -f
 ```
 
-La base de datos se guarda en `./data/` (volumen), así que tu histórico
-sobrevive a reinicios y actualizaciones.
-
-### 3c. Ejecutar como servicio systemd
-
-```bash
-# instala en /opt/price-tracker-bot con su .venv, luego:
-sudo cp deploy/price-tracker-bot.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now price-tracker-bot
-sudo journalctl -u price-tracker-bot -f
-```
+El servicio se reinicia solo si el bot se cae. Los logs van a journald, así que
+no hay ningún fichero de log que crezca sin control.
 
 ## 💬 Comandos del bot
 
@@ -163,20 +158,18 @@ pytest
 ## 🧱 Estructura del proyecto
 
 ```
-price-tracker-bot/
+Bot_Telegram_Precio/
 ├── bot/
 │   ├── config.py       # configuración desde .env
 │   ├── database.py     # SQLite: productos, tiendas, histórico
 │   ├── stores.py       # registro de tiendas y selectores
 │   ├── scraper.py      # descarga + parsing de precios (best-effort)
 │   ├── tracker.py      # lógica: cambios, mínimos, objetivo, mejor precio
-│   ├── charts.py       # gráfica de evolución (matplotlib)
+│   ├── charts.py       # gráfica de evolución (matplotlib, bajo demanda)
 │   ├── formatting.py   # formateo de mensajes de Telegram
 │   ├── handlers.py     # comandos, menús y conversaciones
 │   └── scheduler.py    # chequeo diario automático
 ├── main.py             # punto de entrada
 ├── tests/              # pruebas (pytest)
-├── deploy/             # servicio systemd
-├── Dockerfile
-└── docker-compose.yml
+└── deploy/             # servicio systemd
 ```
