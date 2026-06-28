@@ -20,6 +20,7 @@ import logging
 import re
 from dataclasses import dataclass
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 from selectolax.parser import HTMLParser
@@ -38,11 +39,19 @@ USER_AGENTS = [
 ]
 
 _DEFAULT_HEADERS = {
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
     "Accept-Encoding": "gzip, deflate, br",
     "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "Cache-Control": "max-age=0",
 }
 
 # Palabras que sugieren que el producto NO está disponible.
@@ -248,38 +257,50 @@ class Scraper:
         self.delay = delay
         self._ua_index = 0
 
-    def _headers(self) -> dict:
+    def _headers(self, url: Optional[str] = None) -> dict:
         ua = USER_AGENTS[self._ua_index % len(USER_AGENTS)]
         self._ua_index += 1
-        return {**_DEFAULT_HEADERS, "User-Agent": ua}
+        headers = {**_DEFAULT_HEADERS, "User-Agent": ua}
+        if url:
+            parsed = urlparse(url)
+            headers["Referer"] = f"{parsed.scheme}://{parsed.netloc}/"
+        return headers
 
     async def fetch(self, url: str, user_selector: Optional[str] = None) -> ScrapeResult:
         """Descarga la URL y extrae el precio. Nunca lanza excepción."""
         if not stores.is_valid_url(url):
             return ScrapeResult(url=url, ok=False, error="URL inválida.")
-        try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                follow_redirects=True,
-                headers=self._headers(),
-            ) as client:
-                resp = await client.get(url)
+        last_status: Optional[int] = None
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(
+                    timeout=self.timeout,
+                    follow_redirects=True,
+                    headers=self._headers(url),
+                ) as client:
+                    resp = await client.get(url)
+                if resp.status_code in (403, 429) and attempt == 0:
+                    last_status = resp.status_code
+                    await asyncio.sleep(1.5)
+                    continue
                 resp.raise_for_status()
-                html = resp.text
-        except httpx.HTTPStatusError as exc:
-            return ScrapeResult(
-                url=url, ok=False,
-                error=f"La tienda respondió con error HTTP {exc.response.status_code}.",
-            )
-        except httpx.RequestError as exc:
-            return ScrapeResult(
-                url=url, ok=False, error=f"No se pudo conectar: {exc!s}"
-            )
-        except Exception as exc:  # noqa: BLE001 - best effort, nunca romper
-            logger.exception("Error inesperado scrapeando %s", url)
-            return ScrapeResult(url=url, ok=False, error=f"Error inesperado: {exc!s}")
-
-        return extract_price(html, url, user_selector)
+                return extract_price(resp.text, url, user_selector)
+            except httpx.HTTPStatusError as exc:
+                return ScrapeResult(
+                    url=url, ok=False,
+                    error=f"La tienda respondió con error HTTP {exc.response.status_code}.",
+                )
+            except httpx.RequestError as exc:
+                return ScrapeResult(
+                    url=url, ok=False, error=f"No se pudo conectar: {exc!s}"
+                )
+            except Exception as exc:  # noqa: BLE001 - best effort, nunca romper
+                logger.exception("Error inesperado scrapeando %s", url)
+                return ScrapeResult(url=url, ok=False, error=f"Error inesperado: {exc!s}")
+        return ScrapeResult(
+            url=url, ok=False,
+            error=f"La tienda respondió con error HTTP {last_status}.",
+        )
 
     async def fetch_many(self, items: list[tuple[str, Optional[str]]]) -> list[ScrapeResult]:
         """Scrapea varias (url, selector) en serie con un pequeño delay."""
