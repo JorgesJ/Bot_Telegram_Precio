@@ -303,11 +303,12 @@ class BotHandlers:
                 "Inténtalo de nuevo o escribe /done."
             )
             return
-        if stores.is_unsupported(url):
+        if not stores.is_supported(url):
             await update.message.reply_text(
-                f"🚫 <b>{stores.infer_store_name(url)}</b> no se puede rastrear "
-                "(su anti-bot no es accesible con el plan actual), así que no la he "
-                "añadido.\nPrueba con otra tienda o escribe /done.",
+                "🚫 <b>URL no aceptada en el scrapper.</b>\n"
+                "Por ahora solo se admiten tiendas ya probadas: "
+                "<b>Amazon, Delonghi, Tien21, MediaMarkt y FNAC</b>.\n"
+                "Prueba con otra o pulsa ✅ Terminar / escribe /done.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=self._finish_kb(),
             )

@@ -112,8 +112,9 @@ GENERIC_SELECTORS: list[str] = [
 ]
 
 
-# Dominios que NO se pueden rastrear (anti-bot inviable con el plan actual).
-UNSUPPORTED_DOMAINS: set[str] = {"elcorteingles", "pccomponentes", "carrefour"}
+# Solo se aceptan URLs de estas tiendas (las ya probadas que funcionan).
+# Para admitir una nueva, añade aquí su dominio (el de normalize_domain).
+SUPPORTED_DOMAINS: set[str] = {"amazon", "delonghi", "tien21", "mediamarkt", "fnac"}
 
 
 def normalize_domain(url: str) -> str:
@@ -168,6 +169,6 @@ def is_valid_url(url: str) -> bool:
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
-def is_unsupported(url: str) -> bool:
-    """True si el dominio está marcado como no rastreable."""
-    return normalize_domain(url) in UNSUPPORTED_DOMAINS
+def is_supported(url: str) -> bool:
+    """True si el dominio está en la lista blanca de tiendas aceptadas."""
+    return normalize_domain(url) in SUPPORTED_DOMAINS
