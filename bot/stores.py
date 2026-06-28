@@ -99,6 +99,9 @@ STORE_REGISTRY: dict[str, dict] = {
     },
 }
 
+# Los enlaces cortos de Amazon (amzn.eu / amzn.to) se tratan como Amazon.
+STORE_REGISTRY["amzn"] = STORE_REGISTRY["amazon"]
+
 # Selectores genéricos que prueban como último recurso en cualquier web.
 GENERIC_SELECTORS: list[str] = [
     'meta[property="product:price:amount"]',
@@ -114,7 +117,7 @@ GENERIC_SELECTORS: list[str] = [
 
 # Solo se aceptan URLs de estas tiendas (las ya probadas que funcionan).
 # Para admitir una nueva, añade aquí su dominio (el de normalize_domain).
-SUPPORTED_DOMAINS: set[str] = {"amazon", "delonghi", "tien21", "mediamarkt", "fnac"}
+SUPPORTED_DOMAINS: set[str] = {"amazon", "amzn", "delonghi", "tien21", "mediamarkt", "fnac"}
 
 
 def normalize_domain(url: str) -> str:

@@ -10,6 +10,7 @@ def test_normalize_domain():
 
 def test_infer_store_name_known():
     assert stores.infer_store_name("https://www.amazon.es/dp/1") == "Amazon"
+    assert stores.infer_store_name("https://amzn.eu/d/09sb52Ja") == "Amazon"
     assert stores.infer_store_name("https://www.mediamarkt.es/x") == "MediaMarkt"
     assert stores.infer_store_name("https://www.leroymerlin.es/p") == "Leroy Merlin"
 
@@ -42,6 +43,7 @@ def test_is_valid_url():
 
 def test_is_supported():
     assert stores.is_supported("https://www.amazon.es/dp/1") is True
+    assert stores.is_supported("https://amzn.eu/d/09sb52Ja") is True
     assert stores.is_supported("https://www.mediamarkt.es/x") is True
     assert stores.is_supported("https://www.fnac.es/x") is True
     assert stores.is_supported("https://www.delonghi.com/x") is True
