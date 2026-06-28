@@ -44,6 +44,7 @@ class Settings:
 
     bot_token: str
     allowed_user_ids: set[int] = field(default_factory=set)
+    admin_user_ids: set[int] = field(default_factory=set)
     database_path: str = "data/price_tracker.db"
     daily_check_hour: int = 9
     daily_check_minute: int = 0
@@ -72,6 +73,13 @@ class Settings:
     def is_authorized(self, user_id: int) -> bool:
         return not self.auth_enabled or user_id in self.allowed_user_ids
 
+    def is_admin(self, user_id: int) -> bool:
+        """True si el usuario es admin. Si no hay admins configurados, todos los
+        usuarios autorizados se consideran admin (caso de un solo usuario)."""
+        if not self.admin_user_ids:
+            return True
+        return user_id in self.admin_user_ids
+
 
 def load_settings() -> Settings:
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -87,6 +95,7 @@ def load_settings() -> Settings:
     return Settings(
         bot_token=token,
         allowed_user_ids=_parse_ids(os.getenv("ALLOWED_USER_IDS")),
+        admin_user_ids=_parse_ids(os.getenv("ADMIN_USER_IDS")),
         database_path=db_path,
         daily_check_hour=_parse_int(os.getenv("DAILY_CHECK_HOUR"), 9),
         daily_check_minute=_parse_int(os.getenv("DAILY_CHECK_MINUTE"), 0),

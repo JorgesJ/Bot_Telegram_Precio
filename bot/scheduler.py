@@ -54,7 +54,11 @@ class DailyChecker:
         alert = quota.pop_alert(self.db, self.settings)
         if not alert:
             return
-        targets = self.settings.allowed_user_ids or set(self.db.list_user_ids())
+        targets = (
+            self.settings.admin_user_ids
+            or self.settings.allowed_user_ids
+            or set(self.db.list_user_ids())
+        )
         for chat_id in targets:
             try:
                 await context.bot.send_message(

@@ -134,7 +134,7 @@ class BotHandlers:
             "o si se alcanza tu precio objetivo.\n\n"
             "Usa el menú o escribe /help para ver todos los comandos."
         )
-        await self._reply(update, text, self._main_menu_kb())
+        await self._reply(update, text, self._main_menu_kb(self.settings.is_admin(update.effective_user.id)))
 
     @_authorized
     async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -155,7 +155,7 @@ class BotHandlers:
             "Puedes añadir tiendas nuevas en cualquier momento (➕ Añadir tienda), "
             "fijar un 🎯 precio objetivo y ver la 📈 gráfica de evolución."
         )
-        await self._reply(update, text, self._main_menu_kb())
+        await self._reply(update, text, self._main_menu_kb(self.settings.is_admin(update.effective_user.id)))
 
     @_authorized
     async def cmd_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -163,7 +163,7 @@ class BotHandlers:
 
     @_authorized
     async def cmd_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await self._reply(update, "Menú principal:", self._main_menu_kb())
+        await self._reply(update, "Menú principal:", self._main_menu_kb(self.settings.is_admin(update.effective_user.id)))
 
     @_authorized
     async def cmd_check_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -185,6 +185,9 @@ class BotHandlers:
 
     @_authorized
     async def cmd_usage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not self.settings.is_admin(update.effective_user.id):
+            await self._reply(update, "🚫 Esta opción es solo para el administrador.")
+            return
         await self._reply(update, quota.usage_text(self.db, self.settings))
 
     @_authorized
@@ -404,13 +407,17 @@ class BotHandlers:
 
         if data == "nav_menu":
             await query.edit_message_text(
-                "Menú principal:", reply_markup=self._main_menu_kb()
+                "Menú principal:",
+                reply_markup=self._main_menu_kb(self.settings.is_admin(user.id)),
             )
         elif data == "nav_list":
             await self._show_list(update, context, edit=True)
         elif data == "nav_help":
             await self.cmd_help(update, context)
         elif data == "nav_usage":
+            if not self.settings.is_admin(user.id):
+                await query.answer("Opción solo para el administrador.", show_alert=True)
+                return
             kb = InlineKeyboardMarkup(
                 [[InlineKeyboardButton("« Menú principal", callback_data="nav_menu")]]
             )
@@ -619,15 +626,15 @@ class BotHandlers:
         )
 
     @staticmethod
-    def _main_menu_kb() -> InlineKeyboardMarkup:
-        return InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton("📋 Mis productos", callback_data="nav_list")],
-                [InlineKeyboardButton("➕ Añadir producto", callback_data="conv_add")],
-                [InlineKeyboardButton("📊 Consumo API", callback_data="nav_usage")],
-                [InlineKeyboardButton("❓ Ayuda", callback_data="nav_help")],
-            ]
-        )
+    def _main_menu_kb(is_admin: bool = False) -> InlineKeyboardMarkup:
+        rows = [
+            [InlineKeyboardButton("📋 Mis productos", callback_data="nav_list")],
+            [InlineKeyboardButton("➕ Añadir producto", callback_data="conv_add")],
+        ]
+        if is_admin:
+            rows.append([InlineKeyboardButton("📊 Consumo API", callback_data="nav_usage")])
+        rows.append([InlineKeyboardButton("❓ Ayuda", callback_data="nav_help")])
+        return InlineKeyboardMarkup(rows)
 
     @staticmethod
     def _product_kb(product_id: int) -> InlineKeyboardMarkup:
