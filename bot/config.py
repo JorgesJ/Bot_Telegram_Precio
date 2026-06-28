@@ -53,7 +53,7 @@ class Settings:
     log_level: str = "INFO"
     scraperapi_key: str = ""
     scraperapi_domains: set[str] = field(
-        default_factory=lambda: {"mediamarkt", "elcorteingles"}
+        default_factory=lambda: {"mediamarkt"}
     )
     scraperapi_monthly_budget: int = 1000
     scraperapi_credits_per_request: int = 10
@@ -96,7 +96,7 @@ def load_settings() -> Settings:
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO",
         scraperapi_key=os.getenv("SCRAPERAPI_KEY", "").strip(),
         scraperapi_domains=_parse_domains(
-            os.getenv("SCRAPERAPI_DOMAINS"), {"mediamarkt", "elcorteingles"}
+            os.getenv("SCRAPERAPI_DOMAINS"), {"mediamarkt"}
         ),
         scraperapi_monthly_budget=_parse_int(os.getenv("SCRAPERAPI_MONTHLY_BUDGET"), 1000),
         scraperapi_credits_per_request=_parse_int(

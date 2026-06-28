@@ -303,6 +303,15 @@ class BotHandlers:
                 "Inténtalo de nuevo o escribe /done."
             )
             return
+        if stores.is_unsupported(url):
+            await update.message.reply_text(
+                f"🚫 <b>{stores.infer_store_name(url)}</b> no se puede rastrear "
+                "(su anti-bot no es accesible con el plan actual), así que no la he "
+                "añadido.\nPrueba con otra tienda o escribe /done.",
+                parse_mode=ParseMode.HTML,
+                reply_markup=self._finish_kb(),
+            )
+            return
         store_name = stores.infer_store_name(url)
         store_id = self.db.add_store(product_id, store_name, url)
         msg = await update.message.reply_text(
