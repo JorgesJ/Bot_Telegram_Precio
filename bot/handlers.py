@@ -221,7 +221,7 @@ class BotHandlers:
             f"✅ Producto «{name}» creado.\n\n"
             "Ahora pégame la <b>URL del producto en la primera tienda</b> "
             "(Amazon, MediaMarkt, PcComponentes…).\n"
-            "Cuando termines de añadir tiendas, pulsa ✅ Terminar o escribe /done.",
+            "Cuando termines de añadir tiendas, pulsa ✅ Terminar y volver o escribe /done.",
             parse_mode=ParseMode.HTML,
             reply_markup=self._finish_kb(),
         )
@@ -259,7 +259,7 @@ class BotHandlers:
         await update.callback_query.answer()
         await update.callback_query.message.reply_text(
             "🔗 Pégame la URL del producto en la nueva tienda.\n"
-            "Puedes pegar varias seguidas; pulsa ✅ Terminar o escribe /done al acabar.",
+            "Puedes pegar varias seguidas; pulsa ✅ Terminar y volver o escribe /done al acabar.",
             reply_markup=self._finish_kb(),
         )
         return ADDSTORE_URL
@@ -308,7 +308,7 @@ class BotHandlers:
                 "🚫 <b>URL no aceptada en el scrapper.</b>\n"
                 "Por ahora solo se admiten tiendas ya probadas: "
                 "<b>Amazon, Delonghi, Tien21, MediaMarkt y FNAC</b>.\n"
-                "Prueba con otra o pulsa ✅ Terminar / escribe /done.",
+                "Prueba con otra o pulsa ✅ Terminar y volver / escribe /done.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=self._finish_kb(),
             )
@@ -323,7 +323,7 @@ class BotHandlers:
         if check and check.ok:
             await msg.edit_text(
                 f"✅ <b>{store_name}</b>: {formatting.fmt_price(check.new_price, check.store.currency)}\n"
-                "Pega otra URL, pulsa ✅ Terminar o escribe /done.",
+                "Pega otra URL, pulsa ✅ Terminar y volver o escribe /done.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=self._finish_kb(),
             )
@@ -332,7 +332,7 @@ class BotHandlers:
             await msg.edit_text(
                 f"⚠️ Añadida <b>{store_name}</b>, pero no pude leer el precio "
                 f"({err}).\nLo reintentaré en el chequeo diario. Pega otra URL, "
-                "pulsa ✅ Terminar o escribe /done.",
+                "pulsa ✅ Terminar y volver o escribe /done.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=self._finish_kb(),
             )
@@ -362,7 +362,12 @@ class BotHandlers:
         text = update.message.text.strip().lower()
         if text in ("quitar", "borrar", "no", "ninguno"):
             self.db.set_target_price(product_id, None)
-            await update.message.reply_text("🎯 Objetivo eliminado.")
+            await update.message.reply_text(
+                "🎯 Objetivo eliminado.",
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("« Volver al producto", callback_data=f"prod_view:{product_id}")]]
+                ),
+            )
             return ConversationHandler.END
         from .scraper import parse_price
 
@@ -375,8 +380,11 @@ class BotHandlers:
             return SET_TARGET
         self.db.set_target_price(product_id, value)
         await update.message.reply_text(
-            f"🎯 Objetivo fijado en {formatting.fmt_price(value)}. "
-            "Te avisaré cuando alguna tienda lo alcance."
+            f"🎯 Objetivo fijado en {formatting.fmt_price(value)}.\n"
+            "Te avisaré en el chequeo diario cuando alguna tienda baje a ese precio o menos.",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("« Volver al producto", callback_data=f"prod_view:{product_id}")]]
+            ),
         )
         return ConversationHandler.END
 
@@ -474,19 +482,33 @@ class BotHandlers:
 
     async def _show_product(self, update: Update, product_id: int):
         product = self.db.get_product(product_id)
+        query = update.callback_query
         if product is None:
-            await update.callback_query.edit_message_text("Producto no encontrado.")
+            await query.answer("Producto no encontrado.", show_alert=True)
             return
-        await update.callback_query.edit_message_text(
-            formatting.format_product_detail(self.db, product),
-            parse_mode=ParseMode.HTML,
-            reply_markup=self._product_kb(product_id),
-        )
+        text = formatting.format_product_detail(self.db, product)
+        kb = self._product_kb(product_id)
+        # Si venimos de la gráfica (mensaje con foto), no se puede editar a texto:
+        # enviamos un mensaje nuevo en ese caso.
+        if query.message is not None and query.message.text is not None:
+            await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+        else:
+            await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
     async def _show_stores(self, update: Update, product_id: int, prefix: str = ""):
         product = self.db.get_product(product_id)
         store_list = self.db.list_stores(product_id)
-        text = prefix + f"🛒 <b>Tiendas de {product.name}</b>\n\nPulsa para eliminar una tienda:"
+        back = [InlineKeyboardButton("« Volver al producto", callback_data=f"prod_view:{product_id}")]
+        if not store_list:
+            text = prefix + f"🗑 <b>Eliminar tiendas de {product.name}</b>\n\nNo hay tiendas."
+            await update.callback_query.edit_message_text(
+                text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([back])
+            )
+            return
+        text = prefix + (
+            f"🗑 <b>Eliminar tiendas de {product.name}</b>\n\n"
+            "Pulsa una tienda para eliminarla:"
+        )
         buttons = [
             [
                 InlineKeyboardButton(
@@ -496,8 +518,7 @@ class BotHandlers:
             ]
             for s in store_list
         ]
-        buttons.append([InlineKeyboardButton("➕ Añadir tienda", callback_data=f"conv_addstore:{product_id}")])
-        buttons.append([InlineKeyboardButton("« Volver", callback_data=f"prod_view:{product_id}")])
+        buttons.append(back)
         await update.callback_query.edit_message_text(
             text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(buttons)
         )
@@ -536,6 +557,9 @@ class BotHandlers:
             chat_id=update.effective_user.id,
             photo=buffer,
             caption=f"📈 Evolución de precio · {product.name}",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("« Volver al producto", callback_data=f"prod_view:{product_id}")]]
+            ),
         )
 
     # ------------------------------------------------------------------ #
@@ -544,7 +568,7 @@ class BotHandlers:
     @staticmethod
     def _finish_kb() -> InlineKeyboardMarkup:
         return InlineKeyboardMarkup(
-            [[InlineKeyboardButton("✅ Terminar", callback_data="conv_finish")]]
+            [[InlineKeyboardButton("✅ Terminar y volver", callback_data="conv_finish")]]
         )
 
     @staticmethod
@@ -568,11 +592,11 @@ class BotHandlers:
                 ],
                 [
                     InlineKeyboardButton("➕ Añadir tienda", callback_data=f"conv_addstore:{product_id}"),
-                    InlineKeyboardButton("🛒 Tiendas", callback_data=f"prod_stores:{product_id}"),
+                    InlineKeyboardButton("🗑 Eliminar tiendas", callback_data=f"prod_stores:{product_id}"),
                 ],
                 [
                     InlineKeyboardButton("🎯 Precio objetivo", callback_data=f"conv_target:{product_id}"),
-                    InlineKeyboardButton("🗑 Eliminar", callback_data=f"prod_del:{product_id}"),
+                    InlineKeyboardButton("🗑 Eliminar producto", callback_data=f"prod_del:{product_id}"),
                 ],
                 [InlineKeyboardButton("« Mis productos", callback_data="nav_list")],
             ]
