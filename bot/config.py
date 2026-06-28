@@ -45,6 +45,7 @@ class Settings:
     bot_token: str
     allowed_user_ids: set[int] = field(default_factory=set)
     admin_user_ids: set[int] = field(default_factory=set)
+    max_products_per_user: int = 5
     database_path: str = "data/price_tracker.db"
     daily_check_hour: int = 9
     daily_check_minute: int = 0
@@ -96,6 +97,7 @@ def load_settings() -> Settings:
         bot_token=token,
         allowed_user_ids=_parse_ids(os.getenv("ALLOWED_USER_IDS")),
         admin_user_ids=_parse_ids(os.getenv("ADMIN_USER_IDS")),
+        max_products_per_user=_parse_int(os.getenv("MAX_PRODUCTS_PER_USER"), 5),
         database_path=db_path,
         daily_check_hour=_parse_int(os.getenv("DAILY_CHECK_HOUR"), 9),
         daily_check_minute=_parse_int(os.getenv("DAILY_CHECK_MINUTE"), 0),

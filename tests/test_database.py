@@ -167,3 +167,12 @@ def test_best_current_stores_single(db):
     tied, price = db.best_current_stores(pid)
     assert price == pytest.approx(449.00)
     assert [s.name for s in tied] == ["Tien21"]
+
+
+
+def test_app_state(db):
+    assert db.get_state("queries_blocked") is None
+    db.set_state("queries_blocked", "1")
+    assert db.get_state("queries_blocked") == "1"
+    db.set_state("queries_blocked", "0")
+    assert db.get_state("queries_blocked") == "0"

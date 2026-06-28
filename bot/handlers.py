@@ -42,6 +42,18 @@ from .tracker import StoreCheck, Tracker
 
 logger = logging.getLogger(__name__)
 
+# Mensajes de bloqueo de consultas
+_BLOCK_MSG = (
+    "⛔ <b>Consultas pausadas</b>\n"
+    "Se ha alcanzado el límite de consultas del mes. Recibirás un mensaje "
+    "cuando el contador se reinicie y se reactiven."
+)
+_UNBLOCK_MSG = "✅ <b>Consultas reactivadas.</b> Ya puedes volver a consultar precios."
+_BLOCKED_NOTICE = (
+    "⛔ Las consultas están pausadas (límite mensual alcanzado). "
+    "Te avisaré cuando se reactiven."
+)
+
 # Estados de conversación
 (
     ADD_NAME,
@@ -167,6 +179,9 @@ class BotHandlers:
 
     @_authorized
     async def cmd_check_all(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if quota.is_blocked(self.db):
+            await self._reply(update, _BLOCKED_NOTICE)
+            return
         user = update.effective_user
         products = self.db.list_products(owner_id=user.id)
         if not products:
@@ -224,7 +239,16 @@ class BotHandlers:
         if not name:
             await update.message.reply_text("Dame un nombre válido, por favor.")
             return ADD_NAME
-        product_id = self.db.add_product(update.effective_user.id, name)
+        uid = update.effective_user.id
+        if not self.settings.is_admin(uid):
+            limit = self.settings.max_products_per_user
+            if len(self.db.list_products(owner_id=uid)) >= limit:
+                await update.message.reply_text(
+                    f"🚫 Has alcanzado el máximo de {limit} productos. "
+                    "Elimina alguno para poder añadir más."
+                )
+                return ConversationHandler.END
+        product_id = self.db.add_product(uid, name)
         context.user_data["product_id"] = product_id
         await update.message.reply_text(
             f"✅ Producto «{name}» creado.\n\n"
@@ -324,6 +348,14 @@ class BotHandlers:
             return
         store_name = stores.infer_store_name(url)
         store_id = self.db.add_store(product_id, store_name, url)
+        if quota.is_blocked(self.db):
+            await update.message.reply_text(
+                f"✅ Añadida <b>{store_name}</b>. Las consultas están pausadas; "
+                "leeré el precio cuando se reactiven.",
+                parse_mode=ParseMode.HTML,
+                reply_markup=self._finish_kb(),
+            )
+            return
         msg = await update.message.reply_text(
             f"⏳ Añadida <b>{store_name}</b>. Leyendo precio inicial…",
             parse_mode=ParseMode.HTML,
@@ -418,14 +450,21 @@ class BotHandlers:
             if not self.settings.is_admin(user.id):
                 await query.answer("Opción solo para el administrador.", show_alert=True)
                 return
-            kb = InlineKeyboardMarkup(
-                [[InlineKeyboardButton("« Menú principal", callback_data="nav_menu")]]
-            )
-            await query.edit_message_text(
-                quota.usage_text(self.db, self.settings),
-                parse_mode=ParseMode.HTML,
-                reply_markup=kb,
-            )
+            await self._show_usage(query)
+        elif data == "nav_block":
+            if not self.settings.is_admin(user.id):
+                await query.answer("Opción solo para el administrador.", show_alert=True)
+                return
+            quota.block_queries(self.db)
+            await self._broadcast(context, _BLOCK_MSG)
+            await self._show_usage(query)
+        elif data == "nav_unblock":
+            if not self.settings.is_admin(user.id):
+                await query.answer("Opción solo para el administrador.", show_alert=True)
+                return
+            quota.unblock_queries(self.db)
+            await self._broadcast(context, _UNBLOCK_MSG)
+            await self._show_usage(query)
         elif data.startswith("prod_view:"):
             await self._show_product(update, int(data.split(":")[1]))
         elif data.startswith("prod_check:"):
@@ -570,6 +609,12 @@ class BotHandlers:
 
     async def _do_check(self, update: Update, context: ContextTypes.DEFAULT_TYPE, product_id: int):
         query = update.callback_query
+        if quota.is_blocked(self.db):
+            await query.answer(
+                "Consultas pausadas (límite mensual). Te avisaré al reactivarse.",
+                show_alert=True,
+            )
+            return
         await query.edit_message_text("⏳ Comprobando precios…")
         report = await self.tracker.check_product(product_id)
         if report is None:
@@ -666,3 +711,27 @@ class BotHandlers:
 
     async def _send(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int, text: str):
         await context.bot.send_message(chat_id=chat_id, text=text, parse_mode=ParseMode.HTML)
+
+    async def _show_usage(self, query):
+        blocked = quota.is_blocked(self.db)
+        text = quota.usage_text(self.db, self.settings)
+        if blocked:
+            text += "\n\n⛔ <b>Consultas BLOQUEADAS</b> actualmente."
+        toggle = (
+            InlineKeyboardButton("✅ Reactivar consultas", callback_data="nav_unblock")
+            if blocked
+            else InlineKeyboardButton("⛔ Bloquear consultas", callback_data="nav_block")
+        )
+        kb = InlineKeyboardMarkup(
+            [[toggle], [InlineKeyboardButton("« Menú principal", callback_data="nav_menu")]]
+        )
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
+
+    async def _broadcast(self, context: ContextTypes.DEFAULT_TYPE, text: str):
+        for chat_id in self.db.list_user_ids():
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_id, text=text, parse_mode=ParseMode.HTML
+                )
+            except Exception:  # noqa: BLE001 - no romper por un envío fallido
+                logger.exception("No se pudo enviar el aviso a %s", chat_id)

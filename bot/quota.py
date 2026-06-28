@@ -64,3 +64,32 @@ def pop_alert(db: Database, settings: Settings) -> Optional[str]:
             "<b>pausarán automáticamente</b> hasta el mes que viene."
         )
     return None
+
+
+
+# --------------------------------------------------------------------------- #
+# Bloqueo manual de consultas (interruptor del administrador)
+# --------------------------------------------------------------------------- #
+_BLOCKED_KEY = "queries_blocked"
+_BLOCKED_MONTH_KEY = "blocked_month"
+
+
+def is_blocked(db: Database) -> bool:
+    return db.get_state(_BLOCKED_KEY) == "1"
+
+
+def block_queries(db: Database) -> None:
+    db.set_state(_BLOCKED_KEY, "1")
+    db.set_state(_BLOCKED_MONTH_KEY, month_key())
+
+
+def unblock_queries(db: Database) -> None:
+    db.set_state(_BLOCKED_KEY, "0")
+
+
+def check_monthly_reset(db: Database) -> bool:
+    """Si estaba bloqueado y ha cambiado el mes, desbloquea y devuelve True."""
+    if db.get_state(_BLOCKED_KEY) == "1" and db.get_state(_BLOCKED_MONTH_KEY) != month_key():
+        db.set_state(_BLOCKED_KEY, "0")
+        return True
+    return False
