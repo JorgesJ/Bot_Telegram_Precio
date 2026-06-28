@@ -92,7 +92,7 @@ def _format_check_line(check: StoreCheck) -> str:
 # Detalle de producto (con mín/máx histórico por tienda)
 # --------------------------------------------------------------------------- #
 def format_product_detail(db: Database, product: Product) -> str:
-    lines = [f"📦 <b>{escape(product.name)}</b>  <code>#{product.id}</code>"]
+    lines = [f"📦 <b>{escape(product.name)}</b>"]
     if product.target_price is not None:
         lines.append(f"🎯 Precio objetivo: {fmt_price(product.target_price)}")
     lines.append("")
@@ -104,7 +104,7 @@ def format_product_detail(db: Database, product: Product) -> str:
 
     for store in stores:
         mn, mx = db.get_min_max(store.id)
-        header = f"🛒 <b>{escape(store.name)}</b>  <code>#{store.id}</code>"
+        header = f"🛒 <b>{escape(store.name)}</b>"
         if store.last_price is not None:
             header += f" — {fmt_price(store.last_price, store.currency)}"
             if store.available is False:
@@ -143,4 +143,4 @@ def format_product_list_line(db: Database, product: Product) -> str:
         price_txt = f"{fmt_price(bprice, bstores[0].currency)} ({store_txt})"
     else:
         price_txt = "sin datos aún"
-    return f"<code>#{product.id}</code> 📦 <b>{escape(product.name)}</b> — {len(stores)} tienda(s) · {price_txt}"
+    return f"📦 <b>{escape(product.name)}</b> — {len(stores)} tienda(s) · {price_txt}"
