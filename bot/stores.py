@@ -113,7 +113,7 @@ GENERIC_SELECTORS: list[str] = [
 
 
 # Dominios que NO se pueden rastrear (anti-bot inviable con el plan actual).
-UNSUPPORTED_DOMAINS: set[str] = {"elcorteingles", "pccomponentes"}
+UNSUPPORTED_DOMAINS: set[str] = {"elcorteingles", "pccomponentes", "carrefour"}
 
 
 def normalize_domain(url: str) -> str:
