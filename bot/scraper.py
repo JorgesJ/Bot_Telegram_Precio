@@ -218,7 +218,7 @@ def extract_price(html: str, url: str, user_selector: Optional[str]) -> ScrapeRe
             price, currency = result
             return ScrapeResult(
                 url=url, ok=True, price=price, currency=currency,
-                available=not _looks_unavailable(html),
+                available=True,
                 method=f"selector:{selector}",
             )
 
@@ -228,7 +228,7 @@ def extract_price(html: str, url: str, user_selector: Optional[str]) -> ScrapeRe
         price, currency = jsonld
         return ScrapeResult(
             url=url, ok=True, price=price, currency=currency,
-            available=not _looks_unavailable(html), method="json-ld",
+            available=True, method="json-ld",
         )
 
     # 3 + 4) selectores de dominio y genéricos
@@ -238,7 +238,7 @@ def extract_price(html: str, url: str, user_selector: Optional[str]) -> ScrapeRe
             price, currency = result
             return ScrapeResult(
                 url=url, ok=True, price=price, currency=currency,
-                available=not _looks_unavailable(html),
+                available=True,
                 method=f"selector:{selector}",
             )
 
