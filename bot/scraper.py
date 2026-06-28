@@ -347,7 +347,6 @@ class Scraper:
             "api_key": self.api_key,
             "url": url,
             "premium": "true",
-            "render": "true",
             "country_code": "es",
         }
         api_url = f"{SCRAPERAPI_ENDPOINT}?{urlencode(params)}"

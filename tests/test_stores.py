@@ -37,3 +37,10 @@ def test_is_valid_url():
     assert not stores.is_valid_url("amazon.es/x")
     assert not stores.is_valid_url("ftp://x.com")
     assert not stores.is_valid_url("hola")
+
+
+
+def test_is_unsupported():
+    assert stores.is_unsupported("https://www.elcorteingles.es/x") is True
+    assert stores.is_unsupported("https://www.mediamarkt.es/x") is False
+    assert stores.is_unsupported("https://www.amazon.es/dp/1") is False

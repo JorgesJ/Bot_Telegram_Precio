@@ -112,6 +112,10 @@ GENERIC_SELECTORS: list[str] = [
 ]
 
 
+# Dominios que NO se pueden rastrear (anti-bot inviable con el plan actual).
+UNSUPPORTED_DOMAINS: set[str] = {"elcorteingles"}
+
+
 def normalize_domain(url: str) -> str:
     """Devuelve el dominio base sin 'www.' ni TLD compuesto.
 
@@ -162,3 +166,8 @@ def candidate_selectors(url: str, user_selector: str | None) -> list[str]:
 def is_valid_url(url: str) -> bool:
     parsed = urlparse(url)
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
+def is_unsupported(url: str) -> bool:
+    """True si el dominio está marcado como no rastreable."""
+    return normalize_domain(url) in UNSUPPORTED_DOMAINS
