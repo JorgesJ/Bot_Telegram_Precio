@@ -142,3 +142,28 @@ def test_month_warned_flag(db):
     db.add_month_credits("2026-06", 5)
     assert db.get_month_credits("2026-06") == 5
     assert db.is_month_warned("2026-06") is True
+
+
+
+def test_best_current_stores_tie(db):
+    pid = db.add_product(1, "X")
+    s1 = db.add_store(pid, "Amazon", "https://amazon.es/x")
+    s2 = db.add_store(pid, "Delonghi", "https://delonghi.com/x")
+    s3 = db.add_store(pid, "MediaMarkt", "https://mediamarkt.es/x")
+    db.record_price(s1, 449.90)
+    db.record_price(s2, 449.90)
+    db.record_price(s3, 499.00)
+    tied, price = db.best_current_stores(pid)
+    assert price == pytest.approx(449.90)
+    assert {s.name for s in tied} == {"Amazon", "Delonghi"}
+
+
+def test_best_current_stores_single(db):
+    pid = db.add_product(1, "X")
+    s1 = db.add_store(pid, "Amazon", "https://amazon.es/x")
+    s2 = db.add_store(pid, "Tien21", "https://tien21.es/x")
+    db.record_price(s1, 449.90)
+    db.record_price(s2, 449.00)
+    tied, price = db.best_current_stores(pid)
+    assert price == pytest.approx(449.00)
+    assert [s.name for s in tied] == ["Tien21"]

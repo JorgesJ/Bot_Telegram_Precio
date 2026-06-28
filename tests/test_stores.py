@@ -42,5 +42,6 @@ def test_is_valid_url():
 
 def test_is_unsupported():
     assert stores.is_unsupported("https://www.elcorteingles.es/x") is True
+    assert stores.is_unsupported("https://www.pccomponentes.com/x") is True
     assert stores.is_unsupported("https://www.mediamarkt.es/x") is False
     assert stores.is_unsupported("https://www.amazon.es/dp/1") is False

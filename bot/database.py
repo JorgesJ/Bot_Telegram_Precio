@@ -334,6 +334,21 @@ class Database:
         best = min(stores, key=lambda s: s.last_price)  # type: ignore[arg-type]
         return best, float(best.last_price)  # type: ignore[arg-type]
 
+    def best_current_stores(
+        self, product_id: int
+    ) -> Optional[tuple[list[Store], float]]:
+        """Todas las tiendas disponibles que comparten el precio actual más bajo."""
+        stores = [
+            s
+            for s in self.list_stores(product_id)
+            if s.last_price is not None and (s.available is not False)
+        ]
+        if not stores:
+            return None
+        best_price = min(s.last_price for s in stores)  # type: ignore[type-var]
+        tied = [s for s in stores if abs(s.last_price - best_price) < 0.005]  # type: ignore[operator]
+        return tied, float(best_price)
+
     # ------------------------------------------------------------------ #
     # Consumo de la API de scraping (contador mensual)
     # ------------------------------------------------------------------ #
