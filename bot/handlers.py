@@ -591,14 +591,23 @@ class BotHandlers:
                 "Todavía no hay histórico suficiente para la gráfica.", show_alert=True
             )
             return
-        await context.bot.send_photo(
-            chat_id=update.effective_user.id,
+        chat_id = update.effective_user.id
+        # Borra la gráfica anterior para quedarnos solo con la más reciente.
+        prev_id = context.chat_data.get("last_chart_msg_id")
+        if prev_id:
+            try:
+                await context.bot.delete_message(chat_id=chat_id, message_id=prev_id)
+            except Exception:  # noqa: BLE001 - si ya no existe o pasó de 48h, da igual
+                pass
+        sent = await context.bot.send_photo(
+            chat_id=chat_id,
             photo=buffer,
             caption=f"📈 Evolución de precio · {product.name}",
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("« Volver al producto", callback_data=f"prod_view:{product_id}")]]
             ),
         )
+        context.chat_data["last_chart_msg_id"] = sent.message_id
 
     # ------------------------------------------------------------------ #
     # Teclados
