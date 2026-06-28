@@ -100,6 +100,12 @@ CREATE TABLE IF NOT EXISTS price_history (
     FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS api_usage (
+    month   TEXT PRIMARY KEY,
+    credits INTEGER NOT NULL DEFAULT 0,
+    warned  INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS idx_stores_product ON stores(product_id);
 CREATE INDEX IF NOT EXISTS idx_history_store ON price_history(store_id);
 CREATE INDEX IF NOT EXISTS idx_products_owner ON products(owner_id);
@@ -327,6 +333,49 @@ class Database:
             return None
         best = min(stores, key=lambda s: s.last_price)  # type: ignore[arg-type]
         return best, float(best.last_price)  # type: ignore[arg-type]
+
+    # ------------------------------------------------------------------ #
+    # Consumo de la API de scraping (contador mensual)
+    # ------------------------------------------------------------------ #
+    def get_month_credits(self, month: str) -> int:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT credits FROM api_usage WHERE month = ?", (month,)
+            ).fetchone()
+        return int(row["credits"]) if row else 0
+
+    def add_month_credits(self, month: str, amount: int) -> int:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO api_usage (month, credits) VALUES (?, ?)
+                ON CONFLICT(month) DO UPDATE SET credits = credits + excluded.credits
+                """,
+                (month, amount),
+            )
+            self._conn.commit()
+            row = self._conn.execute(
+                "SELECT credits FROM api_usage WHERE month = ?", (month,)
+            ).fetchone()
+        return int(row["credits"]) if row else amount
+
+    def is_month_warned(self, month: str) -> bool:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT warned FROM api_usage WHERE month = ?", (month,)
+            ).fetchone()
+        return bool(row["warned"]) if row else False
+
+    def mark_month_warned(self, month: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO api_usage (month, warned) VALUES (?, 1)
+                ON CONFLICT(month) DO UPDATE SET warned = 1
+                """,
+                (month,),
+            )
+            self._conn.commit()
 
 
 # --------------------------------------------------------------------------- #

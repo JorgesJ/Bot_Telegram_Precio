@@ -122,3 +122,23 @@ def test_record_error(db):
     store = db.get_store(sid)
     assert store.last_error == "HTTP 503"
     assert store.last_price is None
+
+
+
+def test_month_credits_accumulate(db):
+    assert db.get_month_credits("2026-06") == 0
+    assert db.add_month_credits("2026-06", 10) == 10
+    assert db.add_month_credits("2026-06", 10) == 20
+    assert db.get_month_credits("2026-06") == 20
+    # Otro mes empieza de cero (reset automático).
+    assert db.get_month_credits("2026-07") == 0
+
+
+def test_month_warned_flag(db):
+    assert db.is_month_warned("2026-06") is False
+    db.mark_month_warned("2026-06")
+    assert db.is_month_warned("2026-06") is True
+    # No afecta a los créditos ya contados.
+    db.add_month_credits("2026-06", 5)
+    assert db.get_month_credits("2026-06") == 5
+    assert db.is_month_warned("2026-06") is True

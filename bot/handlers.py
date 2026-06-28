@@ -34,7 +34,7 @@ from telegram.ext import (
     filters,
 )
 
-from . import formatting, stores
+from . import formatting, quota, stores
 from .charts import build_price_chart
 from .config import Settings
 from .database import Database
@@ -117,6 +117,7 @@ class BotHandlers:
         app.add_handler(CommandHandler("help", self.cmd_help))
         app.add_handler(CommandHandler("list", self.cmd_list))
         app.add_handler(CommandHandler("check", self.cmd_check_all))
+        app.add_handler(CommandHandler("uso", self.cmd_usage))
         # Navegación por botones (patrones disjuntos de conv_*)
         app.add_handler(CallbackQueryHandler(self.on_callback, pattern=r"^(nav_|prod_|store_).*"))
 
@@ -141,6 +142,7 @@ class BotHandlers:
             "/add — añadir un producto nuevo y sus tiendas\n"
             "/list — ver tus productos\n"
             "/check — comprobar precios ahora (todos)\n"
+            "/uso — ver el consumo de la API de scraping\n"
             "/cancel — cancelar la operación actual\n"
             "/help — esta ayuda\n\n"
             "<b>Cómo funciona</b>\n"
@@ -171,6 +173,13 @@ class BotHandlers:
                 await self._send(
                     context, user.id, formatting.format_report(report)
                 )
+        alert = quota.pop_alert(self.db, self.settings)
+        if alert:
+            await self._send(context, user.id, alert)
+
+    @_authorized
+    async def cmd_usage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await self._reply(update, quota.usage_text(self.db, self.settings))
 
     @_authorized
     async def cmd_cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -382,6 +391,15 @@ class BotHandlers:
             await self._show_list(update, context, edit=True)
         elif data == "nav_help":
             await self.cmd_help(update, context)
+        elif data == "nav_usage":
+            kb = InlineKeyboardMarkup(
+                [[InlineKeyboardButton("« Menú principal", callback_data="nav_menu")]]
+            )
+            await query.edit_message_text(
+                quota.usage_text(self.db, self.settings),
+                parse_mode=ParseMode.HTML,
+                reply_markup=kb,
+            )
         elif data.startswith("prod_view:"):
             await self._show_product(update, int(data.split(":")[1]))
         elif data.startswith("prod_check:"):
@@ -486,6 +504,11 @@ class BotHandlers:
             parse_mode=ParseMode.HTML,
             reply_markup=self._product_kb(product_id),
         )
+        alert = quota.pop_alert(self.db, self.settings)
+        if alert:
+            await context.bot.send_message(
+                chat_id=update.effective_user.id, text=alert, parse_mode=ParseMode.HTML
+            )
 
     async def _do_chart(self, update: Update, context: ContextTypes.DEFAULT_TYPE, product_id: int):
         query = update.callback_query
@@ -520,6 +543,7 @@ class BotHandlers:
             [
                 [InlineKeyboardButton("📋 Mis productos", callback_data="nav_list")],
                 [InlineKeyboardButton("➕ Añadir producto", callback_data="conv_add")],
+                [InlineKeyboardButton("📊 Consumo API", callback_data="nav_usage")],
                 [InlineKeyboardButton("❓ Ayuda", callback_data="nav_help")],
             ]
         )

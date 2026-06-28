@@ -15,6 +15,7 @@ from telegram.constants import ParseMode
 from telegram.ext import Application, ContextTypes
 
 from . import formatting
+from . import quota
 from .config import Settings
 from .database import Database
 from .tracker import ProductReport, Tracker
@@ -42,11 +43,25 @@ class DailyChecker:
                 logger.exception(
                     "No se pudo notificar al usuario %s", report.product.owner_id
                 )
+        await self._notify_quota(context)
         logger.info(
             "Chequeo diario terminado: %d producto(s), %d aviso(s) enviados.",
             len(reports),
             notified,
         )
+
+    async def _notify_quota(self, context: ContextTypes.DEFAULT_TYPE) -> None:
+        alert = quota.pop_alert(self.db, self.settings)
+        if not alert:
+            return
+        targets = self.settings.allowed_user_ids or set(self.db.list_user_ids())
+        for chat_id in targets:
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_id, text=alert, parse_mode=ParseMode.HTML
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("No se pudo enviar el aviso de cuota a %s", chat_id)
 
     async def _notify(self, context: ContextTypes.DEFAULT_TYPE, report: ProductReport) -> None:
         header = "🔔 <b>Cambios detectados</b>\n\n"

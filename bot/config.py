@@ -32,6 +32,12 @@ def _parse_ids(raw: str | None) -> set[int]:
     return ids
 
 
+def _parse_domains(raw: str | None, default: set[str]) -> set[str]:
+    if raw is None or raw.strip() == "":
+        return set(default)
+    return {p.strip().lower() for p in raw.split(",") if p.strip()}
+
+
 @dataclass
 class Settings:
     """Configuración global de la aplicación."""
@@ -45,11 +51,23 @@ class Settings:
     scrape_delay_seconds: float = 3.0
     http_timeout: float = 20.0
     log_level: str = "INFO"
+    scraperapi_key: str = ""
+    scraperapi_domains: set[str] = field(
+        default_factory=lambda: {"mediamarkt", "elcorteingles"}
+    )
+    scraperapi_monthly_budget: int = 1000
+    scraperapi_credits_per_request: int = 10
+    scraperapi_warn_percent: int = 80
 
     @property
     def auth_enabled(self) -> bool:
         """True si hay una lista blanca de usuarios configurada."""
         return len(self.allowed_user_ids) > 0
+
+    @property
+    def api_enabled(self) -> bool:
+        """True si hay API de scraping (ScraperAPI) configurada."""
+        return bool(self.scraperapi_key)
 
     def is_authorized(self, user_id: int) -> bool:
         return not self.auth_enabled or user_id in self.allowed_user_ids
@@ -76,6 +94,15 @@ def load_settings() -> Settings:
         scrape_delay_seconds=float(_parse_int(os.getenv("SCRAPE_DELAY_SECONDS"), 3)),
         http_timeout=float(_parse_int(os.getenv("HTTP_TIMEOUT"), 20)),
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO",
+        scraperapi_key=os.getenv("SCRAPERAPI_KEY", "").strip(),
+        scraperapi_domains=_parse_domains(
+            os.getenv("SCRAPERAPI_DOMAINS"), {"mediamarkt", "elcorteingles"}
+        ),
+        scraperapi_monthly_budget=_parse_int(os.getenv("SCRAPERAPI_MONTHLY_BUDGET"), 1000),
+        scraperapi_credits_per_request=_parse_int(
+            os.getenv("SCRAPERAPI_CREDITS_PER_REQUEST"), 10
+        ),
+        scraperapi_warn_percent=_parse_int(os.getenv("SCRAPERAPI_WARN_PERCENT"), 80),
     )
 
 
