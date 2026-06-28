@@ -55,7 +55,7 @@ class StoreCheck:
 class ProductReport:
     product: Product
     checks: list[StoreCheck] = field(default_factory=list)
-    best_store: Optional[Store] = None
+    best_stores: list[Store] = field(default_factory=list)
     best_price: Optional[float] = None
 
     @property
@@ -102,9 +102,9 @@ class Tracker:
             check = self._process_store(product, store, result)
             report.checks.append(check)
 
-        best = self.db.best_current_price(product_id)
+        best = self.db.best_current_stores(product_id)
         if best:
-            report.best_store, report.best_price = best
+            report.best_stores, report.best_price = best
         return report
 
     def _process_store(

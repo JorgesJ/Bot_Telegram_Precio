@@ -103,7 +103,8 @@ def test_best_price_across_stores(db):
         db, FakeScraper({"https://a.com/p": 100.0, "https://m.com/p": 92.0})
     )
     report = run(tracker.check_product(pid))
-    assert report.best_store.name == "MediaMarkt"
+    assert len(report.best_stores) == 1
+    assert report.best_stores[0].name == "MediaMarkt"
     assert report.best_price == pytest.approx(92.0)
 
 

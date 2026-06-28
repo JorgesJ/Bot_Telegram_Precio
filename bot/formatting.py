@@ -58,11 +58,12 @@ def format_report(report: ProductReport, only_changes: bool = False) -> str:
         lines.append("Sin cambios de precio. ✅")
 
     # Mejor precio actual
-    if report.best_store and report.best_price is not None:
+    if report.best_stores and report.best_price is not None:
+        names = ", ".join(escape(s.name) for s in report.best_stores)
         lines.append("")
         lines.append(
-            f"🏆 Mejor precio ahora: <b>{fmt_price(report.best_price, report.best_store.currency)}</b> "
-            f"en {escape(report.best_store.name)}"
+            f"🏆 Mejor precio ahora: <b>{fmt_price(report.best_price, report.best_stores[0].currency)}</b> "
+            f"en {names}"
         )
     return "\n".join(lines)
 
@@ -119,23 +120,27 @@ def format_product_detail(db: Database, product: Product) -> str:
         if store.last_error:
             lines.append(f"   ⚠️ {escape(store.last_error)}")
 
-    best = db.best_current_price(product.id)
+    best = db.best_current_stores(product.id)
     if best:
-        bstore, bprice = best
+        bstores, bprice = best
+        names = ", ".join(escape(s.name) for s in bstores)
         lines.append("")
         lines.append(
-            f"🏆 Mejor precio: <b>{fmt_price(bprice, bstore.currency)}</b> "
-            f"en {escape(bstore.name)}"
+            f"🏆 Mejor precio: <b>{fmt_price(bprice, bstores[0].currency)}</b> "
+            f"en {names}"
         )
     return "\n".join(lines)
 
 
 def format_product_list_line(db: Database, product: Product) -> str:
     stores = db.list_stores(product.id)
-    best = db.best_current_price(product.id)
+    best = db.best_current_stores(product.id)
     if best:
-        bstore, bprice = best
-        price_txt = f"{fmt_price(bprice, bstore.currency)} ({escape(bstore.name)})"
+        bstores, bprice = best
+        store_txt = (
+            escape(bstores[0].name) if len(bstores) == 1 else f"{len(bstores)} tiendas"
+        )
+        price_txt = f"{fmt_price(bprice, bstores[0].currency)} ({store_txt})"
     else:
         price_txt = "sin datos aún"
     return f"<code>#{product.id}</code> 📦 <b>{escape(product.name)}</b> — {len(stores)} tienda(s) · {price_txt}"
