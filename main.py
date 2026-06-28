@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 
+from telegram import BotCommand
 from telegram.ext import Application
 
 from bot.config import configure_logging, load_settings
@@ -24,6 +25,20 @@ from bot.scraper import Scraper
 from bot.tracker import Tracker
 
 logger = logging.getLogger(__name__)
+
+
+async def _post_init(app: Application) -> None:
+    """Registra los comandos para el botón de menú (☰) de Telegram."""
+    await app.bot.set_my_commands(
+        [
+            BotCommand("menu", "Menú principal"),
+            BotCommand("list", "Mis productos"),
+            BotCommand("check", "Comprobar precios ahora"),
+            BotCommand("uso", "Consumo de la API"),
+            BotCommand("add", "Añadir producto"),
+            BotCommand("help", "Ayuda"),
+        ]
+    )
 
 
 def build_application() -> Application:
@@ -42,7 +57,7 @@ def build_application() -> Application:
     )
     tracker = Tracker(db, scraper)
 
-    app = Application.builder().token(settings.bot_token).build()
+    app = Application.builder().token(settings.bot_token).post_init(_post_init).build()
 
     handlers = BotHandlers(db, tracker, settings)
     handlers.register(app)
