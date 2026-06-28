@@ -106,6 +106,11 @@ CREATE TABLE IF NOT EXISTS api_usage (
     warned  INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS app_state (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_stores_product ON stores(product_id);
 CREATE INDEX IF NOT EXISTS idx_history_store ON price_history(store_id);
 CREATE INDEX IF NOT EXISTS idx_products_owner ON products(owner_id);
@@ -389,6 +394,27 @@ class Database:
                 ON CONFLICT(month) DO UPDATE SET warned = 1
                 """,
                 (month,),
+            )
+            self._conn.commit()
+
+    # ------------------------------------------------------------------ #
+    # Estado de la aplicación (clave-valor)
+    # ------------------------------------------------------------------ #
+    def get_state(self, key: str) -> Optional[str]:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT value FROM app_state WHERE key = ?", (key,)
+            ).fetchone()
+        return row["value"] if row else None
+
+    def set_state(self, key: str, value: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO app_state (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, value),
             )
             self._conn.commit()
 

@@ -22,6 +22,11 @@ from .tracker import ProductReport, Tracker
 
 logger = logging.getLogger(__name__)
 
+_RESET_MSG = (
+    "✅ <b>Consultas reactivadas</b>\n"
+    "El contador mensual se ha reiniciado. Ya puedes volver a consultar precios."
+)
+
 
 class DailyChecker:
     def __init__(self, db: Database, tracker: Tracker, settings: Settings):
@@ -31,6 +36,11 @@ class DailyChecker:
 
     async def run(self, context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.info("Iniciando chequeo diario de precios…")
+        if quota.check_monthly_reset(self.db):
+            await self._broadcast(context, _RESET_MSG)
+        if quota.is_blocked(self.db):
+            logger.info("Consultas bloqueadas por el admin; se omite el chequeo diario.")
+            return
         reports = await self.tracker.check_all()
         notified = 0
         for report in reports:
@@ -49,6 +59,15 @@ class DailyChecker:
             len(reports),
             notified,
         )
+
+    async def _broadcast(self, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+        for chat_id in self.db.list_user_ids():
+            try:
+                await context.bot.send_message(
+                    chat_id=chat_id, text=text, parse_mode=ParseMode.HTML
+                )
+            except Exception:  # noqa: BLE001
+                logger.exception("No se pudo enviar el aviso a %s", chat_id)
 
     async def _notify_quota(self, context: ContextTypes.DEFAULT_TYPE) -> None:
         alert = quota.pop_alert(self.db, self.settings)
