@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Entorno
+.venv/
+venv/
+.env
+.python-version
+
+# Datos (base de datos local con tu histórico de precios)
+data/
+*.db
+
+# Sistema
+.DS_Store

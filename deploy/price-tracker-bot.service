@@ -1,0 +1,18 @@
+[Unit]
+Description=Bot de Telegram rastreador de precios
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Ajusta User y las rutas a tu instalación real
+User=tracker
+WorkingDirectory=/opt/price-tracker-bot
+Environment=PATH=/opt/price-tracker-bot/.venv/bin:/usr/bin:/bin
+ExecStart=/opt/price-tracker-bot/.venv/bin/python main.py
+Restart=on-failure
+RestartSec=10
+# Reinicia si el bot se cae; espera 10s entre reintentos.
+
+[Install]
+WantedBy=multi-user.target
