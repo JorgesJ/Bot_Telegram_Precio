@@ -161,8 +161,7 @@ class BotHandlers:
             "/help — esta ayuda\n\n"
             "<b>Cómo funciona</b>\n"
             "1️⃣ Crea un producto (ej: «Cafetera Krups XXX»).\n"
-            "2️⃣ Pégame las URLs del producto en cada tienda (Amazon, MediaMarkt, "
-            "PcComponentes, Leroy Merlin, FNAC…).\n"
+            "2️⃣ Pégame las URLs del producto en cada tienda (Amazon y MediaMarkt).\n"
             "3️⃣ Cada día comparo los precios y te aviso de los cambios.\n\n"
             "Puedes añadir tiendas nuevas en cualquier momento (➕ Añadir tienda), "
             "fijar un 🎯 precio objetivo y ver la 📈 gráfica de evolución."
@@ -253,7 +252,7 @@ class BotHandlers:
         await update.message.reply_text(
             f"✅ Producto «{name}» creado.\n\n"
             "Ahora pégame la <b>URL del producto en la primera tienda</b> "
-            "(Amazon, MediaMarkt, PcComponentes…).\n"
+            "(Amazon y MediaMarkt).\n"
             "Cuando termines de añadir tiendas, pulsa ✅ Terminar y volver o escribe /done.",
             parse_mode=ParseMode.HTML,
             reply_markup=self._finish_kb(),
@@ -339,8 +338,7 @@ class BotHandlers:
         if not stores.is_supported(url):
             await update.message.reply_text(
                 "🚫 <b>URL no aceptada en el scrapper.</b>\n"
-                "Por ahora solo se admiten tiendas ya probadas: "
-                "<b>Amazon, Delonghi, Tien21, MediaMarkt y FNAC</b>.\n"
+                "Por ahora solo se admiten <b>Amazon y MediaMarkt</b>.\n"
                 "Prueba con otra o pulsa ✅ Terminar y volver / escribe /done.",
                 parse_mode=ParseMode.HTML,
                 reply_markup=self._finish_kb(),
